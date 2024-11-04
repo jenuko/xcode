@@ -247,16 +247,6 @@ ingress:
     service: http://localhost:8080
 EOF
 
-    [ -n "\${SSH_DOMAIN}" ] && cat >> tunnel.yml << EOF
-  - hostname: \$SSH_DOMAIN
-    service: http://localhost:2222
-EOF
-
-    [ -n "\${FTP_DOMAIN}" ] && cat >> tunnel.yml << EOF
-  - hostname: \$FTP_DOMAIN
-    service: http://localhost:3333
-EOF
-
     cat >> tunnel.yml << EOF
     originRequest:
       noTLSVerify: true
@@ -273,7 +263,7 @@ export_list() {
 
   cat > list << EOF
 *******************************************
-V2-rayN:
+V2:
 ----------------------------
 vless://${UUID}@icook.hk:443?encryption=none&security=tls&sni=\${ARGO_DOMAIN}&type=ws&host=\${ARGO_DOMAIN}&path=%2F${WSPATH}-vless?ed=2048#Argo-Vless
 ----------------------------
@@ -282,9 +272,9 @@ vmess://\$(echo \$VMESS | base64 -w0)
 trojan://${UUID}@icook.hk:443?security=tls&sni=\${ARGO_DOMAIN}&type=ws&host=\${ARGO_DOMAIN}&path=%2F${WSPATH}-trojan?ed=2048#Argo-Trojan
 ----------------------------
 ss://$(echo "chacha20-ietf-poly1305:${UUID}@icook.hk:443" | base64 -w0)@icook.hk:443#Argo-Shadowsocks
-由于该软件导出的链接不全，请自行处理如下: 传输协议: WS ， 伪装域名: \${ARGO_DOMAIN} ，路径: /${WSPATH}-shadowsocks?ed=2048 ， 传输层安全: tls ， sni: \${ARGO_DOMAIN}
+
 *******************************************
-小火箭:
+rk:
 ----------------------------
 vless://${UUID}@icook.hk:443?encryption=none&security=tls&type=ws&host=\${ARGO_DOMAIN}&path=/${WSPATH}-vless?ed=2048&sni=\${ARGO_DOMAIN}#Argo-Vless
 ----------------------------
@@ -294,7 +284,7 @@ trojan://${UUID}@icook.hk:443?peer=\${ARGO_DOMAIN}&plugin=obfs-local;obfs=websoc
 ----------------------------
 ss://$(echo "chacha20-ietf-poly1305:${UUID}@icook.hk:443" | base64 -w0)?obfs=wss&obfsParam=\${ARGO_DOMAIN}&path=/${WSPATH}-shadowsocks?ed=2048#Argo-Shadowsocks
 *******************************************
-Clash:
+Cl:
 ----------------------------
 - {name: Argo-Vless, type: vless, server: icook.hk, port: 443, uuid: ${UUID}, tls: true, servername: \${ARGO_DOMAIN}, skip-cert-verify: false, network: ws, ws-opts: {path: /${WSPATH}-vless?ed=2048, headers: { Host: \${ARGO_DOMAIN}}}, udp: true}
 ----------------------------
@@ -313,100 +303,6 @@ export_list
 ABC
 }
 
-generate_nezha() {
-  cat > nezha.sh << EOF
-#!/usr/bin/env bash
-
-# 检测是否已运行
-check_run() {
-  [[ \$(pgrep -lafx nezha-agent) ]] && echo "哪吒客户端正在运行中" && exit
-}
-
-# 若哪吒三个变量不全，则不安装哪吒客户端
-check_variable() {
-  [[ -z "\${NEZHA_SERVER}" || -z "\${NEZHA_PORT}" || -z "\${NEZHA_KEY}" ]] && exit
-}
-
-# 下载最新版本 Nezha Agent
-download_agent() {
-  if [ ! -e nezha-agent ]; then
-    URL=\$(wget -qO- "https://api.github.com/repos/nezhahq/agent/releases/latest" | grep -o "https.*linux_amd64.zip")
-    URL=\${URL:-https://github.com/nezhahq/agent/releases/download/v0.15.6/nezha-agent_linux_amd64.zip}
-    wget \${URL}
-    unzip -qod ./ nezha-agent_linux_amd64.zip
-    rm -f nezha-agent_linux_amd64.zip
-  fi
-}
-
-check_run
-check_variable
-download_agent
-EOF
-}
-
-generate_ttyd() {
-  cat > ttyd.sh << EOF
-#!/usr/bin/env bash
-
-# 检测是否已运行
-check_run() {
-  [[ \$(pgrep -lafx ttyd) ]] && echo "ttyd 正在运行中" && exit
-}
-
-# 若 ssh argo 域名不设置，则不安装 ttyd
-check_variable() {
-  [ -z "\${SSH_DOMAIN}" ] && exit
-}
-
-# 下载最新版本 ttyd
-download_ttyd() {
-  if [ ! -e ttyd ]; then
-    URL=\$(wget -qO- "https://api.github.com/repos/tsl0922/ttyd/releases/latest" | grep -o "https.*x86_64")
-    URL=\${URL:-https://github.com/tsl0922/ttyd/releases/download/1.7.3/ttyd.x86_64}
-    wget -O ttyd \${URL}
-    chmod +x ttyd
-  fi
-}
-
-check_run
-check_variable
-download_ttyd
-EOF
-}
-
-generate_filebrowser () {
-  cat > filebrowser.sh << EOF
-#!/usr/bin/env bash
-
-# 检测是否已运行
-check_run() {
-  [[ \$(pgrep -lafx filebrowser) ]] && echo "filebrowser 正在运行中" && exit
-}
-
-# 若 ftp argo 域名不设置，则不安装 filebrowser
-check_variable() {
-  [ -z "\${FTP_DOMAIN}" ] && exit
-}
-
-# 下载最新版本 filebrowser
-download_filebrowser() {
-  if [ ! -e filebrowser ]; then
-    URL=\$(wget -qO- "https://api.github.com/repos/filebrowser/filebrowser/releases/latest" | grep -o "https.*linux-amd64.*gz")
-    URL=\${URL:-https://github.com/filebrowser/filebrowser/releases/download/v2.23.0/linux-amd64-filebrowser.tar.gz}
-    wget -O filebrowser.tar.gz \${URL}
-    tar xzvf filebrowser.tar.gz filebrowser
-    rm -f filebrowser.tar.gz
-    chmod +x filebrowser
-    PASSWORD_HASH=\$(./filebrowser hash \$WEB_PASSWORD)
-    sed -i "s#PASSWORD_HASH#\$PASSWORD_HASH#g" ecosystem.config.js
-  fi
-}
-
-check_run
-check_variable
-download_filebrowser
-EOF
-}
 
 # 生成 pm2 配置文件
 generate_pm2_file() {
@@ -436,36 +332,6 @@ module.exports = {
           error_file: "/dev/null"
 EOF
 
-  [[ -n "${NEZHA_SERVER}" && -n "${NEZHA_PORT}" && -n "${NEZHA_KEY}" ]] && cat >> ecosystem.config.js << EOF
-      },
-      {
-          name: 'nezha',
-          script: '/app/nezha-agent',
-          args: "-s ${NEZHA_SERVER}:${NEZHA_PORT} -p ${NEZHA_KEY} ${TLS}",
-          out_file: "/dev/null",
-          error_file: "/dev/null"
-EOF
-
-  [ -n "${SSH_DOMAIN}" ] && cat >> ecosystem.config.js << EOF
-      },
-      {
-          name: 'ttyd',
-          script: '/app/ttyd',
-          args: "-c ${WEB_USERNAME}:${WEB_PASSWORD} -p 2222 bash",
-          out_file: "/dev/null",
-          error_file: "/dev/null"
-EOF
-
-  [ -n "${FTP_DOMAIN}" ] && cat >> ecosystem.config.js << EOF
-      },
-      {
-          name: 'filebrowser',
-          script: '/app/filebrowser',
-          args: "--port 3333 --username ${WEB_USERNAME} --password 'PASSWORD_HASH'",
-          out_file: "/dev/null",
-          error_file: "/dev/null"
-EOF
-
   cat >> ecosystem.config.js << EOF
       }
   ]
@@ -475,13 +341,7 @@ EOF
 
 generate_config
 generate_argo
-generate_nezha
-generate_ttyd
-generate_filebrowser
 generate_pm2_file
 
-[ -e nezha.sh ] && bash nezha.sh
 [ -e argo.sh ] && bash argo.sh
-[ -e ttyd.sh ] && bash ttyd.sh
-[ -e filebrowser.sh ] && bash filebrowser.sh
 [ -e ecosystem.config.js ] && pm2 start
